@@ -4,25 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karta – Sydkinesiska havet</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
 
         :root {
             --ocean-deep: #0a1628;
-            --ocean-mid: #0e1e35;
-            --water: #0c1a2e;
-            --land: #15283f;
-            --land-hover: #1e3a5f;
-            --border: #1c3454;
+            --water: #0d1b2e;
+            --land: #162a42;
+            --land-stroke: #1e3a5f;
+            --land-hover: #1f4470;
+            --land-active: #265a8a;
             --accent-teal: #2ec4b6;
             --accent-gold: #e8b84b;
             --accent-coral: #e85d4a;
-            --accent-red: #d94040;
             --text-primary: #eef0f2;
             --text-secondary: #8ba4bf;
             --card-bg: rgba(14, 30, 53, 0.95);
             --card-border: rgba(255,255,255,0.08);
-            --nine-dash: rgba(232, 93, 74, 0.5);
+            --nine-dash: rgba(232, 93, 74, 0.55);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -32,7 +32,6 @@
             background: var(--ocean-deep);
             color: var(--text-primary);
             min-height: 100vh;
-            overflow-x: hidden;
         }
 
         nav {
@@ -49,14 +48,10 @@
         }
 
         nav .logo { font-weight: 700; font-size: 0.95rem; color: var(--accent-teal); text-decoration: none; }
-        .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 500; }
+        .back-link { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; }
         .back-link:hover { color: var(--text-primary); }
 
-        .page-wrap {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
+        .page-wrap { max-width: 1200px; margin: 0 auto; padding: 2rem; }
 
         .page-header { margin-bottom: 1.5rem; }
 
@@ -73,55 +68,82 @@
 
         .page-header p { color: var(--text-secondary); font-size: 0.9rem; font-weight: 300; max-width: 700px; }
 
-        /* ── MAP LAYOUT ── */
         .map-layout {
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: 1fr 330px;
             gap: 1.5rem;
             align-items: start;
         }
 
-        @media (max-width: 900px) {
-            .map-layout { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 900px) { .map-layout { grid-template-columns: 1fr; } }
 
         .map-container {
             background: var(--water);
             border: 1px solid var(--card-border);
             border-radius: 16px;
             overflow: hidden;
-            position: relative;
         }
 
-        svg { display: block; width: 100%; height: auto; }
+        #map svg { display: block; width: 100%; }
 
-        /* ── SVG STYLES ── */
-        .country {
+        /* D3 country styles */
+        .country-path {
             fill: var(--land);
-            stroke: var(--border);
-            stroke-width: 0.5;
+            stroke: var(--land-stroke);
+            stroke-width: 0.5px;
             cursor: pointer;
-            transition: fill 0.25s, stroke 0.25s;
+            transition: fill 0.2s;
         }
 
-        .country:hover, .country.active {
-            fill: var(--land-hover);
-            stroke: var(--accent-teal);
-            stroke-width: 1;
-        }
+        .country-path:hover { fill: var(--land-hover); }
+        .country-path.active { fill: var(--land-active); stroke: var(--accent-teal); stroke-width: 1.2px; }
+
+        .country-path.claimant { fill: #18304e; }
+        .country-path.claimant:hover { fill: var(--land-hover); }
+        .country-path.claimant.active { fill: var(--land-active); }
 
         .country-label {
-            fill: var(--text-secondary);
-            font-size: 4px;
+            fill: rgba(255,255,255,0.5);
+            font-size: 9px;
             font-family: 'Inter', sans-serif;
             font-weight: 600;
             pointer-events: none;
             text-anchor: middle;
         }
 
+        .nine-dash-line {
+            fill: none;
+            stroke: var(--nine-dash);
+            stroke-width: 1.2px;
+            stroke-dasharray: 5 4;
+        }
+
+        .poi-circle {
+            cursor: pointer;
+            transition: r 0.2s;
+        }
+
+        .poi-circle:hover { r: 6; }
+        .poi-circle.active { stroke: white; stroke-width: 1.5px; }
+
+        .poi-label {
+            fill: rgba(255,255,255,0.6);
+            font-size: 8px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            pointer-events: none;
+        }
+
+        .route-line {
+            fill: none;
+            stroke: rgba(46, 196, 182, 0.12);
+            stroke-width: 1px;
+            stroke-dasharray: 4 3;
+        }
+
         .water-label {
-            fill: rgba(46, 196, 182, 0.35);
-            font-size: 5px;
+            fill: rgba(46, 196, 182, 0.2);
+            font-size: 14px;
             font-family: 'Playfair Display', serif;
             font-weight: 700;
             font-style: italic;
@@ -129,59 +151,15 @@
             text-anchor: middle;
         }
 
-        .nine-dash {
-            fill: none;
-            stroke: var(--nine-dash);
-            stroke-width: 0.6;
-            stroke-dasharray: 2 1.5;
-        }
-
-        .nine-dash-label {
-            fill: rgba(232, 93, 74, 0.6);
-            font-size: 3px;
+        .nine-dash-tag {
+            fill: rgba(232, 93, 74, 0.5);
+            font-size: 7px;
             font-family: 'Inter', sans-serif;
             font-weight: 500;
             pointer-events: none;
         }
 
-        .poi {
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .poi:hover { transform: scale(1.4); }
-
-        .poi circle {
-            transition: r 0.2s, fill 0.2s;
-        }
-
-        .poi:hover circle {
-            r: 2.2;
-        }
-
-        .poi.active circle {
-            r: 2.5;
-            fill: var(--accent-gold);
-            stroke: white;
-            stroke-width: 0.4;
-        }
-
-        .poi-label {
-            fill: var(--text-secondary);
-            font-size: 2.8px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
-            pointer-events: none;
-        }
-
-        .route {
-            fill: none;
-            stroke: rgba(46, 196, 182, 0.15);
-            stroke-width: 0.4;
-            stroke-dasharray: 1.5 1;
-        }
-
-        /* ── INFO PANEL ── */
+        /* Info panel */
         .info-panel {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -191,68 +169,37 @@
             top: 72px;
         }
 
-        .info-panel h2 {
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 0.3rem;
-        }
+        .info-panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; }
 
         .info-panel .info-subtitle {
-            font-size: 0.75rem;
-            color: var(--accent-teal);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.75rem;
+            font-size: 0.72rem; color: var(--accent-teal); font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.75rem;
         }
 
         .info-panel .info-text {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            line-height: 1.7;
+            font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;
         }
 
-        .info-panel .info-text strong {
-            color: var(--text-primary);
-        }
+        .info-panel .info-text strong { color: var(--text-primary); }
 
         .info-panel .info-source {
-            display: block;
-            margin-top: 0.75rem;
-            font-size: 0.7rem;
-            color: var(--accent-teal);
-            opacity: 0.7;
+            display: block; margin-top: 0.75rem;
+            font-size: 0.7rem; color: var(--accent-teal); opacity: 0.7;
         }
 
         .legend {
-            margin-top: 1.5rem;
-            padding-top: 1rem;
+            margin-top: 1.5rem; padding-top: 1rem;
             border-top: 1px solid var(--card-border);
         }
 
-        .legend h3 {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-        }
+        .legend h3 { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; }
 
         .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.3rem;
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.3rem;
         }
 
-        .legend-dot {
-            width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-        }
-
-        .legend-line {
-            width: 18px; height: 0; flex-shrink: 0;
-        }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -268,169 +215,29 @@
     <div class="page-header">
         <div class="section-label">Interaktiv karta</div>
         <h1>Sydkinesiska havet och dess aktörer</h1>
-        <p>Hovra över länder och klicka på punkter för att utforska konflikten geografiskt.</p>
+        <p>Hovra över länder för att highlighta dem. Klicka på länder eller punkter för att läsa mer i panelen till höger.</p>
     </div>
 
     <div class="map-layout">
-        <!-- SVG MAP -->
-        <div class="map-container">
-            <svg viewBox="0 0 260 220" xmlns="http://www.w3.org/2000/svg">
-                <!-- WATER BG -->
-                <rect x="0" y="0" width="260" height="220" fill="var(--water)" />
+        <div class="map-container" id="map"></div>
 
-                <!-- SHIPPING ROUTES -->
-                <path class="route" d="M 5 120 Q 60 115, 100 130 Q 140 145, 180 120 Q 200 108, 230 90" />
-                <path class="route" d="M 100 200 Q 120 170, 140 140 Q 160 115, 195 80" />
-
-                <!-- COUNTRIES — simplified polygons -->
-                <!-- China -->
-                <path class="country" id="c-china" data-name="china"
-                    d="M 80 5 L 140 5 L 170 15 L 195 10 L 220 18 L 250 15 L 255 30 L 245 45 L 230 52 L 220 55 L 215 68 L 205 75 L 195 80 L 188 72 L 178 68 L 165 72 L 155 65 L 145 60 L 130 58 L 120 50 L 105 55 L 95 48 L 85 42 L 80 30 Z"
-                    onclick="showInfo('china')" />
-                <text class="country-label" x="170" y="40">KINA</text>
-
-                <!-- Taiwan -->
-                <path class="country" id="c-taiwan" data-name="taiwan"
-                    d="M 200 72 L 207 68 L 212 72 L 210 80 L 204 82 L 200 78 Z"
-                    onclick="showInfo('taiwan')" />
-                <text class="country-label" x="212" y="78" font-size="3">TAIWAN</text>
-
-                <!-- Philippines -->
-                <path class="country" id="c-philippines" data-name="philippines"
-                    d="M 195 105 L 202 98 L 208 100 L 212 108 L 215 118 L 212 128 L 208 135 L 210 142 L 207 150 L 200 155 L 195 148 L 192 138 L 190 128 L 193 118 L 192 110 Z"
-                    onclick="showInfo('philippines')" />
-                <text class="country-label" x="210" y="132" font-size="3.2">FILIPPINERNA</text>
-
-                <!-- Vietnam -->
-                <path class="country" id="c-vietnam" data-name="vietnam"
-                    d="M 120 55 L 128 62 L 135 70 L 138 80 L 140 90 L 138 100 L 135 110 L 138 120 L 142 130 L 148 140 L 150 148 L 145 150 L 140 145 L 135 138 L 130 128 L 125 118 L 122 108 L 118 98 L 115 88 L 112 78 L 110 68 L 115 60 Z"
-                    onclick="showInfo('vietnam')" />
-                <text class="country-label" x="122" y="105" font-size="3">VIETNAM</text>
-
-                <!-- Malaysia (peninsula) -->
-                <path class="country" id="c-malaysia" data-name="malaysia"
-                    d="M 118 148 L 128 145 L 135 148 L 140 155 L 138 162 L 130 165 L 122 162 L 115 158 L 112 152 Z"
-                    onclick="showInfo('malaysia')" />
-
-                <!-- Malaysia (Borneo part) -->
-                <path class="country" data-name="malaysia"
-                    d="M 148 160 L 162 155 L 175 158 L 185 162 L 190 170 L 182 178 L 170 180 L 158 176 L 150 170 Z"
-                    onclick="showInfo('malaysia')" />
-                <text class="country-label" x="168" y="170" font-size="3">MALAYSIA</text>
-                <text class="country-label" x="126" y="155" font-size="2.5">(Borneo)</text>
-
-                <!-- Indonesia hint -->
-                <path class="country" id="c-indonesia"
-                    d="M 100 185 L 120 180 L 145 182 L 160 185 L 180 190 L 200 192 L 220 195 L 230 200 L 220 208 L 200 210 L 175 208 L 150 205 L 125 200 L 105 195 Z"
-                    onclick="showInfo('indonesia')" />
-                <text class="country-label" x="165" y="200" font-size="3.5">INDONESIEN</text>
-
-                <!-- Brunei (tiny) -->
-                <circle cx="170" cy="158" r="2" class="country" onclick="showInfo('brunei')" />
-                <text class="country-label" x="170" y="154" font-size="2">BRUNEI</text>
-
-                <!-- Japan hint (south islands) -->
-                <path class="country" id="c-japan"
-                    d="M 220 30 L 228 25 L 238 30 L 245 38 L 250 48 L 248 55 L 240 52 L 232 48 L 225 42 L 220 35 Z"
-                    onclick="showInfo('japan')" />
-                <text class="country-label" x="238" y="42" font-size="3">JAPAN</text>
-
-                <!-- NINE-DASH LINE -->
-                <path class="nine-dash"
-                    d="M 190 82 Q 185 90, 188 100
-                       M 185 104 Q 178 112, 175 122
-                       M 172 126 Q 165 135, 158 140
-                       M 155 143 Q 145 148, 138 148
-                       M 134 146 Q 125 140, 120 132
-                       M 118 128 Q 115 120, 118 112
-                       M 120 108 Q 128 100, 138 92
-                       M 142 88 Q 152 80, 165 75
-                       M 168 73 Q 178 70, 185 74" />
-                <text class="nine-dash-label" x="148" y="100" transform="rotate(-15 148 100)">Niopunktslinjen</text>
-
-                <!-- WATER LABEL -->
-                <text class="water-label" x="155" y="118">Sydkinesiska</text>
-                <text class="water-label" x="155" y="124">havet</text>
-
-                <!-- POINTS OF INTEREST -->
-                <g class="poi" onclick="showInfo('spratly')">
-                    <circle cx="170" cy="140" r="1.5" fill="var(--accent-coral)" />
-                    <text class="poi-label" x="174" y="141">Spratlyöarna</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('paracel')">
-                    <circle cx="155" cy="85" r="1.5" fill="var(--accent-coral)" />
-                    <text class="poi-label" x="159" y="86">Paracelöarna</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('scarborough')">
-                    <circle cx="183" cy="112" r="1.5" fill="var(--accent-gold)" />
-                    <text class="poi-label" x="176" y="109">Scarborough-</text>
-                    <text class="poi-label" x="176" y="112.5">revet</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('subi')">
-                    <circle cx="165" cy="135" r="1.5" fill="var(--accent-coral)" />
-                    <text class="poi-label" x="152" y="133" font-size="2.5">Subi Reef (flygfält)</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('masinloc')">
-                    <circle cx="192" cy="108" r="1.3" fill="var(--accent-teal)" />
-                    <text class="poi-label" x="195" y="106" font-size="2.5">Masinloc</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('kasawari')">
-                    <circle cx="160" cy="162" r="1.3" fill="var(--accent-gold)" />
-                    <text class="poi-label" x="147" y="166" font-size="2.5">Kasawari-gasfältet</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('kinmen')">
-                    <circle cx="197" cy="72" r="1.3" fill="var(--accent-gold)" />
-                    <text class="poi-label" x="186" y="70" font-size="2.5">Kinmen</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('strait')">
-                    <circle cx="200" cy="77" r="1" fill="var(--accent-teal)" />
-                    <text class="poi-label" x="203" y="78" font-size="2.3">Taiwansundet</text>
-                </g>
-
-                <g class="poi" onclick="showInfo('djibouti')">
-                    <circle cx="10" cy="130" r="1.3" fill="var(--accent-coral)" />
-                    <text class="poi-label" x="13" y="131" font-size="2.5">→ Djibouti (Kinas utlandsbas)</text>
-                </g>
-            </svg>
-        </div>
-
-        <!-- INFO PANEL -->
         <div class="info-panel" id="infoPanel">
             <div class="info-subtitle" id="infoSubtitle">Välj en plats</div>
             <h2 id="infoTitle">Klicka på kartan</h2>
             <div class="info-text" id="infoText">
-                Hovra över länder för att se gränserna highlightade. Klicka på länderna eller de färgade punkterna för att läsa mer om varje plats och dess roll i konflikten.
+                Hovra över länderna för att se gränserna highlightas. Klicka på länder eller de färgade punkterna för mer information.
             </div>
             <span class="info-source" id="infoSource"></span>
 
             <div class="legend">
                 <h3>Teckenförklaring</h3>
+                <div class="legend-item"><div class="legend-dot" style="background: #18304e; border: 1px solid var(--land-stroke);"></div> Land med anspråk</div>
+                <div class="legend-item"><div class="legend-dot" style="background: var(--accent-coral);"></div> Omstridda öar/rev</div>
+                <div class="legend-item"><div class="legend-dot" style="background: var(--accent-gold);"></div> Strategiska platser</div>
+                <div class="legend-item"><div class="legend-dot" style="background: var(--accent-teal);"></div> Fiskesamhällen</div>
                 <div class="legend-item">
-                    <div class="legend-dot" style="background: var(--accent-coral);"></div>
-                    Omstridda öar/rev
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background: var(--accent-gold);"></div>
-                    Strategiska platser
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background: var(--accent-teal);"></div>
-                    Fiske/civilbefolkning
-                </div>
-                <div class="legend-item">
-                    <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="var(--nine-dash)" stroke-width="1.5" stroke-dasharray="3 2"/></svg>
+                    <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="var(--nine-dash)" stroke-width="1.5" stroke-dasharray="3 2.5"/></svg>
                     Kinas "Niopunktslinje"
-                </div>
-                <div class="legend-item">
-                    <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="rgba(46,196,182,0.2)" stroke-width="1" stroke-dasharray="2 1.5"/></svg>
-                    Fartygsleder
                 </div>
             </div>
         </div>
@@ -438,115 +245,185 @@
 </div>
 
 <script>
-const data = {
-    china: {
-        subtitle: 'Land',
-        title: '🇨🇳 Kina',
-        text: '<strong>Gör anspråk på ~90%</strong> av Sydkinesiska havet via "Niopunktslinjen" från 1947. Har byggt konstgjorda öar med flygfält och militärbaser — dygnet runt i tre år. Kinas fiskeflotta (3 000–6 000 fartyg) opererar under marinens befäl. Peking ser havet som sin <strong>"insjö"</strong> och vägrar erkänna Haag-domstolens dom 2016.',
-        source: 'DN 2016, DN 2019, DN 2025'
-    },
-    taiwan: {
-        subtitle: 'Land',
-        title: '🇹🇼 Taiwan',
-        text: 'Hävdar samma historiska anspråk som Kina. Kontrollerar Itu Aba, den största naturliga ön i Spratlyöarna. <strong>Hälften av världens containerfartyg</strong> passerar genom Taiwansundet årligen. Taiwan har lagrat olja för 6 månader, kol för 5 och mat för 14 månader — för den händelse att Kina blockerar ön.',
-        source: 'DN – De förbereder sig (2023)'
-    },
-    philippines: {
-        subtitle: 'Land',
-        title: '🇵🇭 Filippinerna',
-        text: 'Den mest drabbade grannen. Vann mot Kina i Haag-domstolen 2016 — men Kina ignorerar domen. Fiskare attackeras regelbundet med <strong>vattenkanoner</strong>. Sedan 2016 har landet lämnat in <strong>78 diplomatiska protester</strong>. Under president Marcos har Filippinerna börjat filma kinesisk aggression för att visa världen. 2023 skickades en dykare att klippa Kinas flytande barriär vid Scarboroughrevet.',
-        source: 'DN 2021, DN 2023'
-    },
-    vietnam: {
-        subtitle: 'Land',
-        title: '🇻🇳 Vietnam',
-        text: '1 000 år av kinesisk dominans och historisk arvfiendeskap. <strong>1979 invaderade Kina med 200 000 soldater</strong> — minst 20 000 kinesiska och uppskattningsvis 50 000 vietnamesiska soldater dödades. 1974 tog Kina Paracelöarna. Vietnams strategi: hålla distans till <em>både</em> USA och Kina, inga utländska baser, inga militärallianser.',
-        source: 'DN – Vietnameserna fruktar (2019)'
-    },
-    japan: {
-        subtitle: 'Land',
-        title: '🇯🇵 Japan',
-        text: 'Genomför sin <strong>största militära upprustning sedan andra världskriget</strong>. Försvarsbudgeten ska öka med 65% på fem år. PM Kishida i tal till USA:s kongress: "Dagens Ukraina kan vara morgondagens Östasien." Japan har omtolkat sin pacifistiska grundlag för att tillåta försvar av allierade — och ingår i den nya trilaterala alliansen med USA och Filippinerna (2024).',
-        source: 'DN – Ny enad front (2024)'
-    },
-    malaysia: {
-        subtitle: 'Land',
-        title: '🇲🇾 Malaysia',
-        text: 'Kinas kustbevakning patrullerar dagligen nära <strong>Kasawari-gasfältet</strong>, bara 200 km från Borneo men 1 500 km från Kina. Petronas (Malaysias statliga energibolag) har borrat i 10 år. Malaysia kritiserar inte Kina öppet — men har tyst närmat sig andra regionala krafter.',
-        source: 'DN – Malaysia trakasseras (2021)'
-    },
-    indonesia: {
-        subtitle: 'Land',
-        title: '🇮🇩 Indonesien',
-        text: 'Kinesiska fiskefartyg, eskorterade av kustbevakning, har vid flera tillfällen trängt in i indonesiskt vatten (2019, 2020). Indonesien gör anspråk på delar av havet kring Natunaöarna. Trots att Indonesien officiellt inte är part i huvudkonflikten har man tvingats reagera militärt mot kinesiska intrång.',
-        source: 'DN – Malaysia (2021)'
-    },
-    brunei: {
-        subtitle: 'Land',
-        title: '🇧🇳 Brunei',
-        text: 'Den minsta av de anspråksgörande staterna. Gör anspråk på delar av kontinentalsockeln i söder. Brukar undvika öppen konfrontation med Kina och föredrar diplomatiska kanaler.',
-        source: 'SVT Nyheter'
-    },
-    spratly: {
-        subtitle: 'Omstridd ögrupp',
-        title: '🏝️ Spratlyöarna',
-        text: 'En grupp av över 100 små öar, rev och atoller spridda över <strong>2 miljoner km²</strong> — men den totala landytan är bara några kvadratkilometer. Sex länder gör anspråk. Kina har byggt konstgjorda öar med flygfält, radaranläggningar och luftvärn. Enorma gas- och oljefyndigheter tros finnas under havsbottnen.',
-        source: 'DN – Domstolsbeslut (2016)'
-    },
-    paracel: {
-        subtitle: 'Omstridd ögrupp',
-        title: '🏝️ Paracelöarna',
-        text: 'Togs av Kina från Vietnam <strong>1974</strong>, med stillatigande godkännande från USA. Vietnam hävdar att de styrde öarna sedan 1600-talet. Kina har byggt militära installationer här och använder öarna som bas för sin kontroll över norra Sydkinesiska havet.',
-        source: 'DN – Vietnameserna fruktar (2019)'
-    },
-    scarborough: {
-        subtitle: 'Omstritt rev',
-        title: '⚓ Scarboroughrevet',
-        text: '<strong>2012</strong> tog Kina kontroll — bara 200 km från Filippinernas kust. Filippinska fiskare blockeras med vattenkanoner. 2023 lade Kina ut en <strong>300 meter lång flytande barriär</strong> — Filippinerna svarade med att skicka en dykare som klippte den, på order av president Marcos. Vid ett tillfälle fick en filippinsk kameraman ett kinesiskt fartyg att vända bara genom att filma.',
-        source: 'DN – Filippinerna slår tillbaka (2023), SVT (2023)'
-    },
-    subi: {
-        subtitle: 'Konstgjord ö',
-        title: '🛫 Subi Reef (flygfält)',
-        text: 'En av Kinas konstgjorda öar i Spratlyögruppen. Flygfältet har <strong>samma yta som Amsterdams Schiphol</strong> — en av Europas största flygplatser — byggt ovanpå ett korallrev. Haag-domstolen fastslog att konstgjorda öar inte kan skapa en ekonomisk zon på 200 sjömil.',
-        source: 'DN – Domstolsbeslut (2016)'
-    },
-    masinloc: {
-        subtitle: 'Fiskesamhälle',
-        title: '🎣 Masinloc, Filippinerna',
-        text: 'En liten fiskeby där generationer av familjer har baserat sin verksamhet. Nu ligger stora delar av flottan stilla — det är för farligt att ge sig ut. <strong>"Vi riskerar att sjunka när de riktar sina vattenkanoner mot oss"</strong>, säger fiskaren Rico Heroyla. De gamla träbåtarna kan inte stå emot kinesisk kustbevakning.',
-        source: 'SVT Nyheter (2026), SR (2022)'
-    },
-    kasawari: {
-        subtitle: 'Gasfält',
-        title: '⛽ Kasawari-gasfältet',
-        text: 'Ligger vid Luconia Shoals, <strong>200 km från Borneo, 1 500 km från Kina</strong>. Fältet gör Malaysia till en av världens fem största LNG-leverantörer. Kinesiska fartyg patrullerar nästan dagligen och trakasserar servicefartyg med farliga manövrar för att avskräcka civila företag.',
-        source: 'DN – Malaysia trakasseras (2021)'
-    },
-    kinmen: {
-        subtitle: 'Strategisk ö',
-        title: '🏔️ Kinmen',
-        text: 'Taiwanesisk ö bara <strong>3 km från det kinesiska fastlandet</strong>, 300 km från Taipei. 1958 besköt Kina ön med 475 000 granater på 44 dagar. Under kalla kriget fanns 100 000 soldater här — idag 4 000. Ön är beroende av <strong>vattenimport från Kina</strong>, vilket lokalpolitiker varnar kan bli ett säkerhetshot.',
-        source: 'DN – De förbereder sig (2023)'
-    },
-    strait: {
-        subtitle: 'Strategisk farled',
-        title: '🌊 Taiwansundet',
-        text: 'Det 180 km breda sundet mellan Taiwan och Kina. <strong>Hälften av världens containerfartyg</strong> passerar här årligen. En blockad eller militär konflikt här skulle lamslå global handel. Kina har ökat sina militärövningar i sundet markant under de senaste åren.',
-        source: 'DN – De förbereder sig (2023)'
-    },
-    djibouti: {
-        subtitle: 'Militärbas',
-        title: '🏴 Djibouti — Kinas utlandsbas',
-        text: 'Kinas <strong>första utomlands-marinbas</strong>, etablerad i Djibouti i Afrika. Visar ambitioner bortom det egna närområdet. Kinas nya Sidenväg (Belt and Road) ses som ett verktyg för att sprida militärt inflytande globalt.',
-        source: 'DN – Kinas svällande muskler (2019)'
-    }
+// ── DATA ──
+const claimants = ['China', 'Vietnam', 'Philippines', 'Malaysia', 'Indonesia', 'Brunei', 'Taiwan', 'Japan'];
+
+const countryInfo = {
+    'China': { id: 'china', label: 'Kina', pos: [105, 35] },
+    'Taiwan': { id: 'taiwan', label: 'Taiwan', pos: [121, 23.5] },
+    'Vietnam': { id: 'vietnam', label: 'Vietnam', pos: [107, 16] },
+    'Philippines': { id: 'philippines', label: 'Filippinerna', pos: [122, 12] },
+    'Malaysia': { id: 'malaysia', label: 'Malaysia', pos: [110, 4] },
+    'Indonesia': { id: 'indonesia', label: 'Indonesien', pos: [118, -3] },
+    'Brunei': { id: 'brunei', label: 'Brunei', pos: [114.9, 4.9] },
+    'Japan': { id: 'japan', label: 'Japan', pos: [137, 37] },
+    'Cambodia': { id: 'other', label: 'Kambodja', pos: [105, 12.5] },
+    'Thailand': { id: 'other', label: 'Thailand', pos: [101, 15] },
+    'Laos': { id: 'other', label: 'Laos', pos: [103, 18] },
+    'Myanmar': { id: 'other', label: 'Myanmar', pos: [96, 20] },
+    'South Korea': { id: 'other', label: 'Sydkorea', pos: [128, 36] },
+    'North Korea': { id: 'other', label: 'Nordkorea', pos: [127, 40] },
+    'India': { id: 'other', label: '', pos: [80, 22] },
+    'Bangladesh': { id: 'other', label: '', pos: [90, 24] },
+    'Papua New Guinea': { id: 'other', label: '', pos: [145, -6] },
+    'Australia': { id: 'other', label: '', pos: [134, -25] },
 };
 
-let activeEl = null;
+const pois = [
+    { id: 'spratly', name: 'Spratlyöarna', lon: 114.5, lat: 9.5, color: '#e85d4a', labelOffset: [8, 3] },
+    { id: 'paracel', name: 'Paracelöarna', lon: 112, lat: 16.5, color: '#e85d4a', labelOffset: [8, 3] },
+    { id: 'scarborough', name: 'Scarboroughrevet', lon: 117.8, lat: 15.2, color: '#e8b84b', labelOffset: [8, 3] },
+    { id: 'subi', name: 'Subi Reef', lon: 114.1, lat: 10.8, color: '#e85d4a', labelOffset: [-55, -6] },
+    { id: 'masinloc', name: 'Masinloc', lon: 119.9, lat: 15.5, color: '#2ec4b6', labelOffset: [8, 3] },
+    { id: 'kasawari', name: 'Kasawari', lon: 112.5, lat: 5.5, color: '#e8b84b', labelOffset: [8, 3] },
+    { id: 'kinmen', name: 'Kinmen', lon: 118.3, lat: 24.4, color: '#e8b84b', labelOffset: [-42, -6] },
+    { id: 'strait', name: 'Taiwansundet', lon: 119.5, lat: 24, color: '#2ec4b6', labelOffset: [-68, 3] },
+];
 
-function showInfo(id) {
-    const d = data[id];
+const nineDashLine = [
+    [109, 3], [110, 5], [112, 8], [114, 10], [116, 12],
+    [118, 14], [118.5, 16], [117, 18], [116, 19.5], [114.5, 20],
+    [112, 19], [110, 17.5], [108.5, 15], [107, 12], [106, 9],
+    [105.5, 6], [106, 4], [107, 3], [109, 3]
+];
+
+const infoData = {
+    china: { subtitle: 'Land', title: '🇨🇳 Kina', text: '<strong>Gör anspråk på ~90%</strong> av Sydkinesiska havet via "Niopunktslinjen" från 1947. Har byggt konstgjorda öar med flygfält och militärbaser — dygnet runt i tre år. Kinas fiskeflotta (3 000–6 000 fartyg) opererar under marinens befäl. Peking ser havet som sin <strong>"insjö"</strong> och vägrar erkänna Haag-domstolens dom.', source: 'DN 2016, DN 2019, DN 2025' },
+    taiwan: { subtitle: 'Land', title: '🇹🇼 Taiwan', text: 'Hävdar samma historiska anspråk som Kina. Kontrollerar Itu Aba, den största naturliga ön i Spratlyöarna. <strong>Hälften av världens containerfartyg</strong> passerar genom Taiwansundet årligen. Taiwan har lagrat olja för 6 månader, kol för 5 och mat för 14 månader.', source: 'DN – De förbereder sig (2023)' },
+    philippines: { subtitle: 'Land', title: '🇵🇭 Filippinerna', text: 'Vann mot Kina i Haag-domstolen 2016 — men domen ignoreras. Fiskare attackeras med vattenkanoner. <strong>78 diplomatiska protester</strong> sedan 2016. Under Marcos: filmar kinesisk aggression, skickade dykare att klippa Kinas barriär vid Scarboroughrevet 2023.', source: 'DN 2021, DN 2023' },
+    vietnam: { subtitle: 'Land', title: '🇻🇳 Vietnam', text: '1 000+ år av kinesisk dominans. <strong>1979 invaderade Kina med 200 000 soldater.</strong> 1974 tog Kina Paracelöarna. Vietnams strategi: hålla distans till <em>både</em> USA och Kina, inga utländska baser, inga militärallianser. "Förtroendet finns inte riktigt."', source: 'DN – Vietnameserna fruktar (2019)' },
+    japan: { subtitle: 'Land', title: '🇯🇵 Japan', text: 'Genomför sin <strong>största upprustning sedan WWII</strong>. Försvarsbudgeten +65% på fem år. PM Kishida: "Dagens Ukraina kan vara morgondagens Östasien." Ingår i trilateral allians med USA och Filippinerna sedan 2024.', source: 'DN – Ny enad front (2024)' },
+    malaysia: { subtitle: 'Land', title: '🇲🇾 Malaysia', text: 'Kinesisk kustbevakning patrullerar dagligen nära <strong>Kasawari-gasfältet</strong> — 200 km från Borneo, 1 500 km från Kina. Malaysia kritiserar inte öppet men har tyst närmat sig andra regionala krafter.', source: 'DN – Malaysia (2021)' },
+    indonesia: { subtitle: 'Land', title: '🇮🇩 Indonesien', text: 'Kinesiska fiskefartyg eskorterade av kustbevakning har trängt in i indonesiskt vatten vid Natunaöarna. Officiellt inte part i huvudkonflikten men har tvingats reagera militärt mot kinesiska intrång.', source: 'DN – Malaysia (2021)' },
+    brunei: { subtitle: 'Land', title: '🇧🇳 Brunei', text: 'Den minsta anspråksgörande staten. Gör anspråk på delar av kontinentalsockeln i söder. Undviker öppen konfrontation med Kina och föredrar diplomati.', source: 'SVT Nyheter' },
+    spratly: { subtitle: 'Omstridd ögrupp', title: '🏝️ Spratlyöarna', text: 'Över 100 öar, rev och atoller spridda över <strong>2 miljoner km²</strong>. Sex länder gör anspråk. Kina har byggt konstgjorda öar med flygfält, radar och luftvärn. Enorma gas- och oljefyndigheter under havsbottnen.', source: 'DN – Domstolsbeslut (2016)' },
+    paracel: { subtitle: 'Omstridd ögrupp', title: '🏝️ Paracelöarna', text: 'Togs av Kina från Vietnam <strong>1974</strong> med stillatigande amerikanskt godkännande. Vietnam hävdar att de styrde öarna sedan 1600-talet. Kina har byggt militära installationer.', source: 'DN – Vietnameserna fruktar (2019)' },
+    scarborough: { subtitle: 'Omstritt rev', title: '⚓ Scarboroughrevet', text: '2012 tog Kina kontroll — bara 200 km från Filippinernas kust. Fiskare blockeras. 2023 lade Kina ut en <strong>300 m lång flytande barriär</strong> — Filippinerna skickade en dykare som klippte den. En kameraman fick ett kinesiskt fartyg att vända.', source: 'DN 2023, SVT 2023' },
+    subi: { subtitle: 'Konstgjord ö', title: '🛫 Subi Reef (flygfält)', text: 'Kinesiskt flygfält med <strong>samma yta som Amsterdams Schiphol</strong> — byggt ovanpå ett korallrev. Haag fastslog att konstgjorda öar inte kan skapa en ekonomisk zon på 200 sjömil.', source: 'DN – Domstolsbeslut (2016)' },
+    masinloc: { subtitle: 'Fiskesamhälle', title: '🎣 Masinloc', text: 'Liten filippinsk fiskeby. Stora delar av flottan ligger stilla — för farligt att ge sig ut. <strong>"Vi riskerar att sjunka när de riktar sina vattenkanoner mot oss"</strong> — fiskaren Rico Heroyla.', source: 'SVT (2026), SR (2022)' },
+    kasawari: { subtitle: 'Gasfält', title: '⛽ Kasawari-gasfältet', text: '<strong>200 km från Borneo, 1 500 km från Kina.</strong> Gör Malaysia till en av världens fem största LNG-leverantörer. Kinesiska fartyg trakasserar servicefartyg dagligen med farliga manövrar.', source: 'DN – Malaysia (2021)' },
+    kinmen: { subtitle: 'Strategisk ö', title: '🏔️ Kinmen', text: 'Taiwanesisk ö bara <strong>3 km från Kinas fastland</strong>, 300 km från Taipei. 1958 besköts den med 475 000 granater på 44 dagar. Idag beroende av vattenimport från Kina.', source: 'DN – De förbereder sig (2023)' },
+    strait: { subtitle: 'Strategisk farled', title: '🌊 Taiwansundet', text: '<strong>Hälften av världens containerfartyg</strong> passerar genom detta 180 km breda sund. En blockad eller militär konflikt här skulle lamslå global handel.', source: 'DN – De förbereder sig (2023)' },
+};
+
+// ── MAP BUILD ──
+const width = 800;
+const height = 620;
+
+const projection = d3.geoMercator()
+    .center([113, 13])
+    .scale(550)
+    .translate([width / 2, height / 2]);
+
+const path = d3.geoPath().projection(projection);
+
+const svg = d3.select('#map')
+    .append('svg')
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .style('background', 'var(--water)');
+
+// Graticule
+const graticule = d3.geoGraticule().step([5, 5]);
+svg.append('path')
+    .datum(graticule())
+    .attr('d', path)
+    .attr('fill', 'none')
+    .attr('stroke', 'rgba(255,255,255,0.03)')
+    .attr('stroke-width', 0.5);
+
+// Load GeoJSON
+d3.json('scs_countries.geojson').then(data => {
+    // Shipping routes
+    const routes = [
+        [[95, 8], [105, 8], [112, 10], [118, 14], [122, 18], [125, 22]],
+        [[100, -2], [107, 3], [112, 8], [117, 14], [120, 20], [121, 25]],
+    ];
+    routes.forEach(r => {
+        const lineGen = d3.line().x(d => projection(d)[0]).y(d => projection(d)[1]).curve(d3.curveBasis);
+        svg.append('path')
+            .attr('d', lineGen(r))
+            .attr('class', 'route-line');
+    });
+
+    // Nine-dash line
+    const ndLine = d3.line()
+        .x(d => projection(d)[0])
+        .y(d => projection(d)[1])
+        .curve(d3.curveBasis);
+    svg.append('path')
+        .attr('d', ndLine(nineDashLine))
+        .attr('class', 'nine-dash-line');
+
+    svg.append('text')
+        .attr('class', 'nine-dash-tag')
+        .attr('x', projection([108, 6])[0])
+        .attr('y', projection([108, 6])[1])
+        .attr('transform', `rotate(-30 ${projection([108, 6])[0]} ${projection([108, 6])[1]})`)
+        .text('Niopunktslinjen');
+
+    // Countries
+    svg.selectAll('.country-path')
+        .data(data.features)
+        .join('path')
+        .attr('class', d => {
+            const name = d.properties.NAME;
+            const isClaimant = claimants.includes(name);
+            return `country-path${isClaimant ? ' claimant' : ''}`;
+        })
+        .attr('d', path)
+        .on('click', (e, d) => {
+            const name = d.properties.NAME;
+            const info = countryInfo[name];
+            if (info && infoData[info.id]) showInfo(info.id, name);
+        })
+        .on('mouseenter', function(e, d) {
+            d3.select(this).raise();
+        });
+
+    // Country labels (only for relevant ones)
+    data.features.forEach(f => {
+        const name = f.properties.NAME;
+        const info = countryInfo[name];
+        if (info && info.label) {
+            const pos = projection(info.pos);
+            svg.append('text')
+                .attr('class', 'country-label')
+                .attr('x', pos[0])
+                .attr('y', pos[1])
+                .text(info.label);
+        }
+    });
+
+    // Water label
+    const wPos = projection([112, 12]);
+    svg.append('text').attr('class', 'water-label').attr('x', wPos[0]).attr('y', wPos[1] - 8).text('Sydkinesiska');
+    svg.append('text').attr('class', 'water-label').attr('x', wPos[0]).attr('y', wPos[1] + 10).text('havet');
+
+    // POIs
+    pois.forEach(p => {
+        const pos = projection([p.lon, p.lat]);
+        const g = svg.append('g').style('cursor', 'pointer').on('click', () => showPoi(p.id));
+
+        g.append('circle')
+            .attr('class', 'poi-circle')
+            .attr('id', `poi-${p.id}`)
+            .attr('cx', pos[0])
+            .attr('cy', pos[1])
+            .attr('r', 4)
+            .attr('fill', p.color)
+            .attr('opacity', 0.85);
+
+        g.append('text')
+            .attr('class', 'poi-label')
+            .attr('x', pos[0] + p.labelOffset[0])
+            .attr('y', pos[1] + p.labelOffset[1])
+            .text(p.name);
+    });
+});
+
+// ── INTERACTION ──
+function showInfo(id, countryName) {
+    const d = infoData[id];
     if (!d) return;
 
     document.getElementById('infoSubtitle').textContent = d.subtitle;
@@ -554,19 +431,36 @@ function showInfo(id) {
     document.getElementById('infoText').innerHTML = d.text;
     document.getElementById('infoSource').textContent = 'Källa: ' + d.source;
 
-    // Highlight active
-    document.querySelectorAll('.country.active, .poi.active').forEach(el => el.classList.remove('active'));
+    // Clear active states
+    d3.selectAll('.country-path.active').classed('active', false);
+    d3.selectAll('.poi-circle.active').classed('active', false);
 
-    // Highlight country
-    const countryEl = document.querySelector(`[data-name="${id}"]`);
-    if (countryEl) countryEl.classList.add('active');
+    // Activate country
+    if (countryName) {
+        d3.selectAll('.country-path')
+            .filter(dd => dd.properties.NAME === countryName)
+            .classed('active', true)
+            .raise();
+    }
 
-    // Highlight POI — find by onclick
-    document.querySelectorAll('.poi').forEach(poi => {
-        if (poi.getAttribute('onclick') === `showInfo('${id}')`) poi.classList.add('active');
-    });
+    if (window.innerWidth <= 900) {
+        document.getElementById('infoPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
 
-    // Scroll panel into view on mobile
+function showPoi(id) {
+    const d = infoData[id];
+    if (!d) return;
+
+    document.getElementById('infoSubtitle').textContent = d.subtitle;
+    document.getElementById('infoTitle').innerHTML = d.title;
+    document.getElementById('infoText').innerHTML = d.text;
+    document.getElementById('infoSource').textContent = 'Källa: ' + d.source;
+
+    d3.selectAll('.country-path.active').classed('active', false);
+    d3.selectAll('.poi-circle.active').classed('active', false);
+    d3.select(`#poi-${id}`).classed('active', true);
+
     if (window.innerWidth <= 900) {
         document.getElementById('infoPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
